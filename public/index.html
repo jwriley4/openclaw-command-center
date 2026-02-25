@@ -1456,29 +1456,29 @@
 
     <!-- Cost Breakdown Modal -->
     <div id="cost-modal-overlay" class="detail-overlay hidden" onclick="closeCostModal()"></div>
-    <div id="cost-modal" class="detail-panel hidden" style="max-width: 500px">
+    <div id="cost-modal" class="detail-panel hidden" style="max-width: 520px">
       <div class="detail-header">
         <h2>💰 Cost Breakdown (24h)</h2>
         <button class="close-btn" onclick="closeCostModal()">✕</button>
       </div>
       <div class="detail-content" id="cost-modal-content">
+        <div class="detail-section" id="cost-actual-section"
+          style="background: rgba(63, 185, 80, 0.08); border-radius: 8px; padding: 16px; border: 1px solid rgba(63, 185, 80, 0.2)">
+          <h3>💵 Actual Cost</h3>
+          <div class="detail-box" id="cost-actual"></div>
+        </div>
         <div class="detail-section">
-          <h3>📊 Token Usage</h3>
+          <h3>📊 Token Usage (24h)</h3>
           <div class="detail-box" id="cost-tokens"></div>
         </div>
-        <div class="detail-section">
-          <h3>💵 Pricing Rates (Claude Opus)</h3>
-          <div class="detail-box" id="cost-rates"></div>
-        </div>
-        <div class="detail-section">
-          <h3>🧮 Calculation</h3>
+        <div class="detail-section" style="opacity: 0.7">
+          <h3>🏷️ Equivalent Opus API Cost</h3>
+          <p style="font-size: 0.75rem; color: var(--text-muted); margin: 0 0 8px 0">What this usage would cost without Pro subscription</p>
           <div class="detail-box" id="cost-calculation"></div>
         </div>
-        <div
-          class="detail-section"
-          style="background: rgba(63, 185, 80, 0.1); border-radius: 8px; padding: 16px"
-        >
-          <h3>✨ Est. Savings</h3>
+        <div class="detail-section"
+          style="background: rgba(63, 185, 80, 0.08); border-radius: 8px; padding: 16px">
+          <h3>✨ Subscription Value</h3>
           <div class="detail-box" id="cost-savings"></div>
         </div>
         <div class="detail-section">
@@ -3853,7 +3853,48 @@
       }
 
       function renderCostBreakdown(data) {
-        // Token usage
+        const ha = data.hybridAuth || {};
+        const isHybrid = ha.enabled;
+        const windows = data.windows || {};
+        const calc = data.calculation || {};
+
+        // === ACTUAL COST (hero section) ===
+        if (isHybrid) {
+          const w24 = windows["24h"] || {};
+          const apiDaily = data.totalCost || 0;
+          const apiMonthly = Math.round(apiDaily * 30);
+          const subMonthly = 17; // Pro $200/year
+          const totalMonthly = apiMonthly + subMonthly;
+          const budgetPct = ha.budgetUsed || 0;
+
+          document.getElementById("cost-actual").innerHTML = `
+            <div class="detail-row">
+              <span class="detail-label">🔑 API Spend (crons/subagents)</span>
+              <span class="detail-value"><strong>$${formatCurrency(apiDaily)}/day</strong></span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-label">📋 Pro Subscription (main session)</span>
+              <span class="detail-value" style="color: var(--green)">free</span>
+            </div>
+            <div class="detail-row" style="border-top: 1px solid var(--border); padding-top: 8px; margin-top: 8px;">
+              <span class="detail-label"><strong>Projected Monthly</strong></span>
+              <span class="detail-value"><strong>~$${totalMonthly}/mo</strong> <span style="font-size:0.8rem;color:var(--text-muted)">($${apiMonthly} API + $${subMonthly} sub)</span></span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-label">Total API Spend to Date</span>
+              <span class="detail-value">$${formatCurrency(ha.realApiSpend)} <span style="font-size:0.8rem;color:var(--text-muted)">(${budgetPct}% of budget)</span></span>
+            </div>
+            <div style="margin-top: 8px; padding: 6px 10px; background: rgba(63,185,80,0.1); border-radius: 6px; font-size: 0.8rem; color: var(--green)">
+              ✅ Hybrid auth active — main sessions on Pro subscription, only crons &amp; subagents use API
+            </div>
+          `;
+          document.getElementById("cost-actual-section").style.display = "";
+        } else {
+          // Non-hybrid: hide the actual cost section, show old-style
+          document.getElementById("cost-actual-section").style.display = "none";
+        }
+
+        // === TOKEN USAGE ===
         document.getElementById("cost-tokens").innerHTML = `
           <div class="detail-row"><span class="detail-label">Input Tokens</span><span class="detail-value">${(data.inputTokens || 0).toLocaleString()}</span></div>
           <div class="detail-row"><span class="detail-label">Output Tokens</span><span class="detail-value">${(data.outputTokens || 0).toLocaleString()}</span></div>
@@ -3862,70 +3903,69 @@
           <div class="detail-row"><span class="detail-label">API Requests</span><span class="detail-value">${(data.requests || 0).toLocaleString()}</span></div>
         `;
 
-        // Pricing rates
-        document.getElementById("cost-rates").innerHTML = `
-          <div class="detail-row"><span class="detail-label">Input</span><span class="detail-value">$${data.rates?.input || "15.00"}/1M tokens</span></div>
-          <div class="detail-row"><span class="detail-label">Output</span><span class="detail-value">$${data.rates?.output || "75.00"}/1M tokens</span></div>
-          <div class="detail-row"><span class="detail-label">Cache Read</span><span class="detail-value">$${data.rates?.cacheRead || "1.50"}/1M tokens (90% discount)</span></div>
-          <div class="detail-row"><span class="detail-label">Cache Write</span><span class="detail-value">$${data.rates?.cacheWrite || "18.75"}/1M tokens (25% premium)</span></div>
-        `;
-
-        // Calculation breakdown
-        const calc = data.calculation || {};
+        // === EQUIVALENT OPUS API COST (dimmed, contextual) ===
+        const equivTotal = (calc.inputCost || 0) + (calc.outputCost || 0) + (calc.cacheReadCost || 0) + (calc.cacheWriteCost || 0);
         document.getElementById("cost-calculation").innerHTML = `
-          <div class="detail-row"><span class="detail-label">Input Cost</span><span class="detail-value">$${formatCurrency(calc.inputCost, 2)}</span></div>
-          <div class="detail-row"><span class="detail-label">Output Cost</span><span class="detail-value">$${formatCurrency(calc.outputCost, 2)}</span></div>
-          <div class="detail-row"><span class="detail-label">Cache Read Cost</span><span class="detail-value">$${formatCurrency(calc.cacheReadCost, 2)}</span></div>
-          <div class="detail-row"><span class="detail-label">Cache Write Cost</span><span class="detail-value">$${formatCurrency(calc.cacheWriteCost, 2)}</span></div>
+          <div class="detail-row"><span class="detail-label">Input</span><span class="detail-value">$${formatCurrency(calc.inputCost, 2)}</span></div>
+          <div class="detail-row"><span class="detail-label">Output</span><span class="detail-value">$${formatCurrency(calc.outputCost, 2)}</span></div>
+          <div class="detail-row"><span class="detail-label">Cache Read</span><span class="detail-value">$${formatCurrency(calc.cacheReadCost, 2)}</span></div>
+          <div class="detail-row"><span class="detail-label">Cache Write</span><span class="detail-value">$${formatCurrency(calc.cacheWriteCost, 2)}</span></div>
           <div class="detail-row" style="border-top: 1px solid var(--border); padding-top: 8px; margin-top: 8px;">
-            <span class="detail-label"><strong>Est. API Cost</strong></span>
-            <span class="detail-value"><strong>$${formatCurrency(data.totalCost)}</strong></span>
+            <span class="detail-label"><strong>Total at API Rates</strong></span>
+            <span class="detail-value"><strong>$${formatCurrency(equivTotal)}/day</strong></span>
+          </div>
+          <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px;">
+            At Opus rates: $${data.rates?.input || "15.00"}/$${data.rates?.output || "75.00"}/$${data.rates?.cacheRead || "1.50"}/$${data.rates?.cacheWrite || "18.75"} per 1M tokens (in/out/cache-r/cache-w)
           </div>
         `;
 
-        // Savings - show all three windows (24h, 3da, 7da)
-        const planCost = data.planCost || 200;
-        const planName = data.planName || "Claude Code Max";
-        const windows = data.windows || {};
-
-        // Build savings rows for each window
+        // === SUBSCRIPTION VALUE ===
         const windowOrder = ["24h", "3d", "7d"];
-        const windowLabels = { "24h": "24h", "3d": "3dma", "7d": "7dma" };
+        const windowLabels = { "24h": "24h", "3d": "3d avg", "7d": "7d avg" };
 
-        let savingsHtml = `
-          <div class="detail-row"><span class="detail-label">${planName}</span><span class="detail-value">$${planCost}/month</span></div>
-          <div style="margin-top: 12px; margin-bottom: 8px; font-size: 0.85rem; color: var(--text-muted);">Projected Monthly Cost by Window:</div>
-        `;
-
-        let hasSavings = false;
-        for (const key of windowOrder) {
-          const w = windows[key];
-          if (!w) continue;
-
-          const monthlyProjected = w.monthlyProjected || 0;
-          const savings = w.monthlySavings || 0;
-          const pct = w.savingsPercent || 0;
-
-          if (savings > 0) hasSavings = true;
-
-          const savingsStr =
-            savings > 0
-              ? `<span style="color: var(--green);">↓$${Math.round(savings).toLocaleString()}/mo (${pct}%)</span>`
-              : `<span style="color: var(--text-muted);">-</span>`;
-
+        let savingsHtml = "";
+        if (isHybrid) {
           savingsHtml += `
             <div class="detail-row">
-              <span class="detail-label">${windowLabels[key]}</span>
-              <span class="detail-value">$${Math.round(monthlyProjected).toLocaleString()}/mo ${savingsStr}</span>
+              <span class="detail-label">Pro Subscription</span>
+              <span class="detail-value">$200/year (~$17/mo)</span>
             </div>
+          `;
+          const w = windows["24h"] || {};
+          const savings = w.monthlySavings || 0;
+          const pct = w.savingsPercent || 0;
+          if (savings > 0) {
+            savingsHtml += `
+              <div class="detail-row" style="margin-top: 8px;">
+                <span class="detail-label"><strong>Monthly Savings vs API</strong></span>
+                <span class="detail-value" style="color: var(--green);"><strong>↓$${Math.round(savings).toLocaleString()}/mo (${pct}%)</strong></span>
+              </div>
+              <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 4px;">
+                Main sessions would cost ~$${Math.round(savings + 17).toLocaleString()}/mo at Opus API rates
+              </div>
+            `;
+          }
+          savingsHtml += `
+            <div style="margin-top: 12px; margin-bottom: 4px; font-size: 0.85rem; color: var(--text-muted);">API Spend by Window:</div>
+          `;
+        } else {
+          const planCost = data.planCost || 200;
+          const planName = data.planName || "Claude Code Max";
+          savingsHtml += `
+            <div class="detail-row"><span class="detail-label">${planName}</span><span class="detail-value">$${planCost}/month</span></div>
+            <div style="margin-top: 12px; margin-bottom: 4px; font-size: 0.85rem; color: var(--text-muted);">Projected Monthly Cost by Window:</div>
           `;
         }
 
-        if (!hasSavings) {
+        for (const key of windowOrder) {
+          const w = windows[key];
+          if (!w) continue;
+          const monthlyProjected = w.monthlyProjected || 0;
           savingsHtml += `
-            <p style="margin-top: 12px; font-size: 0.85rem; color: var(--text-muted);">
-              📈 Keep going! Once your monthly cost exceeds $${planCost}, you'll start seeing savings.
-            </p>
+            <div class="detail-row">
+              <span class="detail-label">${windowLabels[key]}</span>
+              <span class="detail-value">$${formatCurrency(w.dailyAvg || 0)}/day → $${Math.round(monthlyProjected).toLocaleString()}/mo</span>
+            </div>
           `;
         }
 
