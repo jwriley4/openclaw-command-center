@@ -2847,12 +2847,26 @@
 
           // Update labels if resource-state provides custom ones
           if (data.source === "resource-state") {
-            const sessionLabel = document.querySelector('#claude-session-pct')?.closest('.vital-item')?.querySelector('span');
-            if (sessionLabel && data.claude?.session?.label) sessionLabel.textContent = data.claude.session.label;
-            const weeklyLabel = document.querySelector('#claude-weekly-pct')?.closest('.vital-item')?.querySelector('span');
-            if (weeklyLabel && data.claude?.weekly?.label) weeklyLabel.textContent = data.claude.weekly.label;
-            const sonnetLabel = document.querySelector('#sonnet-weekly-pct')?.closest('.vital-item')?.querySelector('span');
-            if (sonnetLabel && data.claude?.sonnet?.label) sonnetLabel.textContent = data.claude.sonnet.label;
+            // Detailed panel labels
+            const setLabel = (pctId, label) => {
+              const el = document.getElementById(pctId);
+              if (el) {
+                const vitalLabel = el.closest('.vital-item')?.querySelector('.vital-label');
+                if (vitalLabel && label) vitalLabel.textContent = label;
+              }
+            };
+            setLabel('claude-session-pct', data.claude?.session?.label ? '💰 ' + data.claude.session.label : null);
+            setLabel('claude-weekly-pct', data.claude?.weekly?.label ? '📅 ' + data.claude.weekly.label : null);
+            setLabel('sonnet-weekly-pct', data.claude?.sonnet?.label ? '📊 ' + data.claude.sonnet.label : null);
+
+            // Compact quota card labels
+            const compactLabels = document.querySelectorAll('.quota-stats > span:first-child');
+            if (compactLabels[0] && data.claude?.session?.label) compactLabels[0].textContent = data.claude.session.label;
+            if (compactLabels[1] && data.claude?.weekly?.label) compactLabels[1].textContent = data.claude.weekly.label;
+
+            // Update section header
+            const sectionHeader = document.querySelector('#claude-session-pct')?.closest('.vital-group')?.previousElementSibling;
+            if (sectionHeader && sectionHeader.tagName === 'H3') sectionHeader.textContent = '🧠 Claude (Anthropic) API Budget';
           }
 
           // Claude Session - Show USED as primary (bar fills with consumption)
