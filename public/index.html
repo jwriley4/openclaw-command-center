@@ -321,12 +321,12 @@
               <div class="utilization-icon anthropic">🧠</div>
               <div>
                 <div class="utilization-title">Claude (Anthropic)</div>
-                <div class="utilization-subtitle">API Usage</div>
+                <div class="utilization-subtitle" id="claude-compact-subtitle">API Budget</div>
               </div>
             </div>
             <div>
               <div class="quota-stats">
-                <span>Session Usage</span>
+                <span id="claude-compact-session-label">Daily Budget</span>
                 <span
                   ><span class="quota-value" id="claude-compact-session-pct">-%</span> used</span
                 >
@@ -338,10 +338,13 @@
                   style="width: 0%"
                 ></div>
               </div>
+              <div class="quota-stats" style="margin-top: 2px">
+                <span style="font-size: 0.7rem; color: var(--text-muted)" id="claude-compact-session-detail"></span>
+              </div>
             </div>
             <div style="margin-top: 8px">
               <div class="quota-stats">
-                <span>Weekly Usage</span>
+                <span id="claude-compact-week-label">Weekly Budget</span>
                 <span><span class="quota-value" id="claude-compact-week-pct">-%</span> used</span>
               </div>
               <div class="quota-bar">
@@ -351,10 +354,29 @@
                   style="width: 0%"
                 ></div>
               </div>
+              <div class="quota-stats" style="margin-top: 2px">
+                <span style="font-size: 0.7rem; color: var(--text-muted)" id="claude-compact-week-detail"></span>
+              </div>
+            </div>
+            <div style="margin-top: 8px">
+              <div class="quota-stats">
+                <span id="claude-compact-month-label">Monthly Budget</span>
+                <span><span class="quota-value" id="claude-compact-month-pct">-%</span> used</span>
+              </div>
+              <div class="quota-bar">
+                <div
+                  class="quota-bar-fill low"
+                  id="claude-compact-month-bar"
+                  style="width: 0%"
+                ></div>
+              </div>
+              <div class="quota-stats" style="margin-top: 2px">
+                <span style="font-size: 0.7rem; color: var(--text-muted)" id="claude-compact-month-detail"></span>
+              </div>
             </div>
           </div>
 
-          <div class="utilization-card" id="openai-quota">
+          <div class="utilization-card" id="openai-quota" style="display: none">
             <div class="utilization-header">
               <div class="utilization-icon openai">⚡</div>
               <div>
@@ -2918,6 +2940,7 @@
             compactSessionBar.className =
               "quota-bar-fill " + (sessionUsed < 50 ? "low" : sessionUsed < 80 ? "medium" : "high");
           }
+          $set("claude-compact-session-detail", "textContent", data.claude?.session?.detail || "");
 
           const compactWeekEl = document.getElementById("claude-compact-week-pct");
           const compactWeekBar = document.getElementById("claude-compact-week-bar");
@@ -2927,6 +2950,19 @@
             compactWeekBar.className =
               "quota-bar-fill " + (weeklyUsed < 50 ? "low" : weeklyUsed < 80 ? "medium" : "high");
           }
+          $set("claude-compact-week-detail", "textContent", data.claude?.weekly?.detail || "");
+
+          // Monthly compact bar
+          const monthPct = data.claude?.sonnet?.usedPct || 0;
+          const compactMonthEl = document.getElementById("claude-compact-month-pct");
+          const compactMonthBar = document.getElementById("claude-compact-month-bar");
+          if (compactMonthEl) compactMonthEl.textContent = monthPct + "%";
+          if (compactMonthBar) {
+            compactMonthBar.style.width = monthPct + "%";
+            compactMonthBar.className =
+              "quota-bar-fill " + (monthPct < 50 ? "low" : monthPct < 80 ? "medium" : "high");
+          }
+          $set("claude-compact-month-detail", "textContent", data.claude?.sonnet?.detail || "");
 
           // Sonnet Weekly - Show USED as primary
           const sonnetRemaining = data.claude?.sonnet?.remainingPct || 0;
