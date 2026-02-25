@@ -2845,6 +2845,16 @@
             );
           }
 
+          // Update labels if resource-state provides custom ones
+          if (data.source === "resource-state") {
+            const sessionLabel = document.querySelector('#claude-session-pct')?.closest('.vital-item')?.querySelector('span');
+            if (sessionLabel && data.claude?.session?.label) sessionLabel.textContent = data.claude.session.label;
+            const weeklyLabel = document.querySelector('#claude-weekly-pct')?.closest('.vital-item')?.querySelector('span');
+            if (weeklyLabel && data.claude?.weekly?.label) weeklyLabel.textContent = data.claude.weekly.label;
+            const sonnetLabel = document.querySelector('#sonnet-weekly-pct')?.closest('.vital-item')?.querySelector('span');
+            if (sonnetLabel && data.claude?.sonnet?.label) sonnetLabel.textContent = data.claude.sonnet.label;
+          }
+
           // Claude Session - Show USED as primary (bar fills with consumption)
           const sessionRemaining = data.claude?.session?.remainingPct || 0;
           const sessionUsed = data.claude?.session?.usedPct || 0;
@@ -2854,7 +2864,8 @@
             sessionUsed + '% <small style="font-size:0.6em;opacity:0.7">used</small>',
           );
           $set("claude-session-bar", "style.width", sessionUsed + "%");
-          $set("claude-session-remaining", "textContent", sessionRemaining + "%");
+          $set("claude-session-remaining", "textContent",
+            data.claude?.session?.detail || (sessionRemaining + "%"));
           $set("claude-session-reset", "textContent", data.claude?.session?.resetsIn || "-");
 
           // Color based on used - red when nearly depleted (high usage)
@@ -2874,7 +2885,8 @@
             weeklyUsed + '% <small style="font-size:0.6em;opacity:0.7">used</small>',
           );
           $set("claude-weekly-bar", "style.width", weeklyUsed + "%");
-          $set("claude-weekly-remaining", "textContent", weeklyRemaining + "%");
+          $set("claude-weekly-remaining", "textContent",
+            data.claude?.weekly?.detail || (weeklyRemaining + "%"));
           $set("claude-weekly-reset", "textContent", data.claude?.weekly?.resets || "-");
 
           const weeklyBar = document.getElementById("claude-weekly-bar");
@@ -2911,7 +2923,8 @@
             sonnetUsed + '% <small style="font-size:0.6em;opacity:0.7">used</small>',
           );
           $set("sonnet-weekly-bar", "style.width", sonnetUsed + "%");
-          $set("sonnet-weekly-remaining", "textContent", sonnetRemaining + "%");
+          $set("sonnet-weekly-remaining", "textContent",
+            data.claude?.sonnet?.detail || (sonnetRemaining + "%"));
           $set("sonnet-weekly-reset", "textContent", data.claude?.sonnet?.resets || "-");
 
           const sonnetBar = document.getElementById("sonnet-weekly-bar");
