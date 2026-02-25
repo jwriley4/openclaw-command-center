@@ -2733,7 +2733,7 @@
         return el;
       }
 
-      function renderLlmUsage(data) {
+      async function renderLlmUsage(data) {
         // Wrap in try-catch to prevent crashes from blocking other renders
         try {
           // Handle auth errors - show clear error state instead of 0%
