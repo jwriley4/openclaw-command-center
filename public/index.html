@@ -538,37 +538,16 @@
                 </div>
               </div>
 
-              <!-- LLM Routing -->
-              <div class="vital-card">
+              <!-- Model Routing (custom: spend by model) -->
+              <div class="vital-card" id="model-routing-card">
                 <div class="vital-header">
-                  <span class="vital-label">🦞 Task Routing</span>
+                  <span class="vital-label">🦞 Model Routing</span>
                   <span class="vital-value" id="total-routed-tasks">-</span>
                 </div>
-                <div class="vital-detail" style="margin-top: 12px">
-                  <div class="vital-detail-item">
-                    <span class="vital-detail-value" id="claude-task-count">-</span>
-                    <span class="vital-detail-label">Claude</span>
-                  </div>
-                  <div class="vital-detail-item">
-                    <span class="vital-detail-value" id="codex-task-count">-</span>
-                    <span class="vital-detail-label">Codex</span>
-                  </div>
+                <div id="model-routing-bars" style="margin-top: 12px; font-size: 0.85rem;">
+                  <div style="color: var(--text-muted); text-align: center">Loading...</div>
                 </div>
-                <div class="vital-detail" style="margin-top: 8px">
-                  <div class="vital-detail-item">
-                    <span class="vital-detail-value" id="llama-task-count">-</span>
-                    <span class="vital-detail-label">🦙 Llama</span>
-                  </div>
-                  <div class="vital-detail-item">
-                    <span class="vital-detail-value" id="qwen-task-count">-</span>
-                    <span class="vital-detail-label">🐱 Qwen</span>
-                  </div>
-                </div>
-                <div
-                  style="margin-top: 8px; text-align: center"
-                  title="Average routing latency (classification + execution)"
-                >
-                  <span class="pressure-indicator" id="routing-latency">Avg latency: -</span>
+                <div id="model-routing-types" style="margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--border); font-size: 0.8rem; color: var(--text-muted); text-align: center;">
                 </div>
               </div>
             </div>
@@ -2983,29 +2962,59 @@
               "vital-bar-fill " + (sonnetUsed > 80 ? "red" : sonnetUsed > 50 ? "yellow" : "green");
           }
 
-          // Task Routing
-          const totalTasks = data.routing?.total || 0;
-          const claudeTasks = data.routing?.claudeTasks || 0;
-          const codexTasks = data.routing?.codexTasks || 0;
-          $set("codex-tasks", "textContent", totalTasks + " total");
-          $set("claude-task-count", "textContent", claudeTasks);
-          $set("codex-task-count", "textContent", codexTasks);
+          // Model Routing — populate from resource-state
+          try {
+            const rsRes = await fetch("/api/resource-state");
+            const rs = await rsRes.json();
+            const byModel = rs.apiSpend?.byModel || {};
+            const byType = rs.apiSpend?.byType || {};
+            const total = rs.apiSpend?.total || 0;
 
-          // Codex floor status - shows if we're meeting the 20% minimum
-          const floorStatus = document.getElementById("codex-floor-status");
-          const codexPct = data.routing?.codexPct || 0;
-          const codexFloor = data.routing?.codexFloor || 20;
-          if (floorStatus) {
-            if (totalTasks === 0) {
-              floorStatus.className = "pressure-indicator";
-              floorStatus.textContent = `Codex ≥20%: No tasks yet`;
-            } else if (codexPct >= codexFloor) {
-              floorStatus.className = "pressure-indicator normal";
-              floorStatus.textContent = `Codex ≥20%: ✓ ${codexPct}%`;
-            } else {
-              floorStatus.className = "pressure-indicator warning";
-              floorStatus.textContent = `Codex ≥20%: ${codexPct}% (need more)`;
+            const barsEl = document.getElementById("model-routing-bars");
+            const typesEl = document.getElementById("model-routing-types");
+
+            if (barsEl && total > 0) {
+              // Parse model names and build bars
+              const models = [];
+              const colors = { haiku: "#10b981", sonnet: "#3b82f6", opus: "#a855f7" };
+              const icons = { haiku: "⚡", sonnet: "🎵", opus: "🎭" };
+              for (const [key, spend] of Object.entries(byModel)) {
+                // key format: "cron/claude-haiku-4-5-20251001"
+                const modelName = key.replace(/.*\/claude-/, "").replace(/-\d.*/, "");
+                const pct = Math.round((spend / total) * 100);
+                models.push({ name: modelName, spend, pct, color: colors[modelName] || "#6b7280", icon: icons[modelName] || "🤖" });
+              }
+              models.sort((a, b) => b.spend - a.spend);
+
+              let html = "";
+              for (const m of models) {
+                html += `
+                  <div style="margin-bottom: 8px;">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
+                      <span>${m.icon} ${m.name.charAt(0).toUpperCase() + m.name.slice(1)}</span>
+                      <span>$${m.spend.toFixed(2)} (${m.pct}%)</span>
+                    </div>
+                    <div style="height: 6px; background: var(--border); border-radius: 3px; overflow: hidden;">
+                      <div style="height: 100%; width: ${m.pct}%; background: ${m.color}; border-radius: 3px;"></div>
+                    </div>
+                  </div>`;
+              }
+              barsEl.innerHTML = html;
+              $set("total-routed-tasks", "textContent", "$" + total.toFixed(2) + " total");
+            } else if (barsEl) {
+              barsEl.innerHTML = '<div style="color: var(--text-muted); text-align: center; font-size: 0.8rem;">No API spend yet</div>';
+              $set("total-routed-tasks", "textContent", "$0.00");
             }
+
+            if (typesEl) {
+              const parts = [];
+              for (const [type, spend] of Object.entries(byType)) {
+                parts.push(`${type}: $${spend.toFixed(2)}`);
+              }
+              typesEl.textContent = parts.join(" · ") || "No data";
+            }
+          } catch (e) {
+            console.error("[ModelRouting]", e.message);
           }
         } catch (e) {
           console.error("[renderLlmUsage] Error:", e.message);
